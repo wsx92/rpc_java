@@ -1,0 +1,20 @@
+syntax = "proto2";
+
+package protobuf;
+
+option java_package = "protobuf.proto";
+option java_generic_services = true;
+option optimize_for = SPEED;
+
+message LoginRequest {
+  required string user = 1;
+  required string password = 2;
+}
+
+message LoginResponse {
+  required string result = 1;
+}
+
+service LoginService {
+  rpc Login(LoginRequest) returns(LoginResponse);
+}
