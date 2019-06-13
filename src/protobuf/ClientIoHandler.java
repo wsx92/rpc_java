@@ -1,6 +1,7 @@
 package protobuf;
 
-import com.google.protobuf.*;
+import com.google.protobuf.InvalidProtocolBufferException;
+import com.google.protobuf.Message;
 import org.apache.mina.core.service.IoHandlerAdapter;
 import org.apache.mina.core.session.IoSession;
 import protobuf.proto.Rpc;
@@ -20,24 +21,37 @@ public class ClientIoHandler extends IoHandlerAdapter {
     @Override
     public void messageReceived(IoSession session, Object message) throws Exception {
 
-        Rpc.RpcMeta meta = (Rpc.RpcMeta) message;
-        Rpc.Response rpcResponse = meta.getResponse();
+        InputMessage msg = (InputMessage) message;
 
-        System.out.println(rpcResponse.getErrorCode() + rpcResponse.getErrorText());
+        Rpc.RpcMeta meta = Rpc.RpcMeta.parseFrom(msg.getMeta().array());
 
-    }
+        long callId = meta.getCorrelationId();
 
-    public static void request(IoSession session,Descriptors.MethodDescriptor method, Message message) {
-        Rpc.Request.Builder request = Rpc.Request.newBuilder();
-        request.setServiceName(method.getService().getFullName());
-        request.setMethodName(method.getName());
-        request.setProto(message.toByteString());
-        Rpc.RpcMeta meta = Rpc.RpcMeta.newBuilder().setRequest(request.build()).build();
-        session.write(meta);
-    }
+        Controller controller = Controller.getController(callId);
+        if(controller == null) {
+            throw new RpcException("can not find controller by callId");
+        }
 
-    public static void write(IoSession session, Object object) {
-        session.write(object);
+        Rpc.RpcResponseMeta responseMeta = meta.getResponse();
+
+        if(responseMeta.hasErrorText()) {
+            controller.setFailed(responseMeta.getErrorText());
+            return;
+        }
+
+        if(controller.getResponse() != null) {
+            try {
+                Message response = controller.getResponse().newBuilderForType().mergeFrom(msg.getPayload().array()).build();
+                controller.setResponse(response);
+            }
+            catch (InvalidProtocolBufferException e) {
+                controller.setFailed("fail to parse response message");
+                return;
+            }
+        }
+
+        controller.onRpcReturned();
+
     }
 
 }
