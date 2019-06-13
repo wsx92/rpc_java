@@ -7,18 +7,18 @@ option java_outer_classname = "Rpc";
 option optimize_for = SPEED;
 
 message RpcMeta {
-  optional Request request = 1;
-  optional Response response = 2;
+  optional RpcRequestMeta request = 1;
+  optional RpcResponseMeta response = 2;
+  optional int32 compress_type = 3;
+  optional int64 correlation_id = 4;
 }
 
-message Request {
+message RpcRequestMeta {
   required string service_name = 1;
   required string method_name = 2;
-  required bytes proto = 3;
 }
 
-message Response {
+message RpcResponseMeta {
   optional int32 error_code = 1;
-  optional int32 error_text = 2;
-  optional bytes proto = 3;
+  optional string error_text = 2;
 }
