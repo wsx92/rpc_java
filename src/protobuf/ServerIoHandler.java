@@ -1,10 +1,10 @@
 package protobuf;
 
 import com.google.protobuf.*;
+import org.apache.mina.core.buffer.IoBuffer;
 import org.apache.mina.core.service.IoHandlerAdapter;
 import org.apache.mina.core.session.IoSession;
 import protobuf.proto.Rpc;
-
 
 import java.util.HashMap;
 import java.util.Map;
@@ -26,46 +26,51 @@ public class ServerIoHandler extends IoHandlerAdapter {
     @Override
     public void messageReceived(IoSession session, Object message) throws Exception {
 
-        Rpc.RpcMeta meta = (Rpc.RpcMeta) message;
-        Rpc.Request rpcRequest = meta.getRequest();
+        InputMessage msg = (InputMessage) message;
+        Rpc.RpcMeta requestMeta = Rpc.RpcMeta.parseFrom(msg.getMeta().array());
 
-        Service service = serviceMap.get(rpcRequest.getServiceName());
+        Rpc.RpcRequestMeta rpcRequestMeta = requestMeta.getRequest();
 
+        Service service = serviceMap.get(rpcRequestMeta.getServiceName());
         if(service == null) {
-            return;
+            throw new RpcException("service not exist");
         }
 
-        Descriptors.MethodDescriptor method = service.getDescriptorForType().findMethodByName(rpcRequest.getMethodName());
-
+        Descriptors.MethodDescriptor method = service.getDescriptorForType().findMethodByName(rpcRequestMeta.getMethodName());
         if(method == null) {
-            return;
+            throw new RpcException("method not exist");
         }
 
-        Message.Builder builder;
-        try {
-            builder = service.getRequestPrototype(method).newBuilderForType().mergeFrom(rpcRequest.getProto());
-            if(!builder.isInitialized()) {
-                throw new Exception();
+        Message request = service.getRequestPrototype(method).newBuilderForType().mergeFrom(msg.getPayload().array()).build();
+
+        RpcController controller = new Controller();
+
+        service.callMethod(method, controller, request, response -> {
+            Rpc.RpcMeta.Builder metaBuilder = Rpc.RpcMeta.newBuilder();
+
+            Rpc.RpcResponseMeta.Builder responseMetaBuilder = Rpc.RpcResponseMeta.newBuilder();
+            if(controller.failed()) {
+                responseMetaBuilder.setErrorText(controller.errorText());
             }
-        }
-        catch (InvalidProtocolBufferException e) {
-            throw new Exception(e);
-        }
+            metaBuilder.setResponse(responseMetaBuilder.build());
 
-        Message request = builder.build();
+            metaBuilder.setCorrelationId(requestMeta.getCorrelationId());
+            Rpc.RpcMeta responseMeta = metaBuilder.build();
 
-        RpcController controller = null;
+            int responseLength = response.getSerializedSize();
+            int metaLength = responseMeta.getSerializedSize();
 
-        service.callMethod(method, null, request, null);
+            IoBuffer responseBuf = IoBuffer.allocate(12 + metaLength + responseLength);
 
-        Rpc.Response.Builder responseBuilder = Rpc.Response.newBuilder();
-        responseBuilder.setErrorCode(200);
+            responseBuf.put(Integer.valueOf('P').byteValue()).put(Integer.valueOf('R').byteValue()).put(Integer.valueOf('P').byteValue()).put(Integer.valueOf('C').byteValue());
+            responseBuf.putInt(metaLength + responseLength);
+            responseBuf.putInt(metaLength);
+            responseBuf.put(responseMeta.toByteArray());
+            responseBuf.put(response.toByteArray());
 
-        Rpc.RpcMeta.Builder metaBuilder = Rpc.RpcMeta.newBuilder();
-        metaBuilder.setResponse(responseBuilder.build());
-
-        session.write(metaBuilder.build());
-
+            responseBuf.flip();
+            session.write(responseBuf);
+        });
     }
 
     public void addService(Service service) {
