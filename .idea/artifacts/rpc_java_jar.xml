@@ -1,0 +1,14 @@
+<component name="ArtifactManager">
+  <artifact type="jar" name="rpc_java:jar">
+    <output-path>$PROJECT_DIR$/out/artifacts/rpc_java_jar</output-path>
+    <root id="archive" name="rpc_java.jar">
+      <element id="module-output" name="rpc_java" />
+      <element id="module-output" name="lib" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/lib/lib/logback-core-1.2.3.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/lib/lib/protobuf-java-3.7.0.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/lib/lib/mina-core-2.0.20.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/lib/lib/slf4j-api-1.7.26.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/lib/lib/logback-classic-1.2.3.jar" path-in-jar="/" />
+    </root>
+  </artifact>
+</component>
