@@ -1,6 +1,8 @@
 package protobuf;
 
 import com.google.protobuf.*;
+import log.Log;
+import log.LogCategory;
 import org.apache.mina.core.buffer.IoBuffer;
 import org.apache.mina.core.service.IoHandlerAdapter;
 import org.apache.mina.core.session.IoSession;
@@ -15,12 +17,12 @@ public class ServerIoHandler extends IoHandlerAdapter {
 
     @Override
     public void sessionOpened(IoSession session) {
-        System.out.println("Session Open");
+        Log.trace(LogCategory.Server, "Session Open");
     }
 
     @Override
     public void sessionClosed(IoSession session) {
-        System.out.println("Session Close");
+        Log.trace(LogCategory.Server, "Session Close");
     }
 
     @Override
@@ -30,6 +32,8 @@ public class ServerIoHandler extends IoHandlerAdapter {
         Rpc.RpcMeta requestMeta = Rpc.RpcMeta.parseFrom(msg.getMeta().array());
 
         Rpc.RpcRequestMeta rpcRequestMeta = requestMeta.getRequest();
+
+        Log.trace(LogCategory.Server, "service:{},method:{}", rpcRequestMeta.getServiceName(), rpcRequestMeta.getMethodName());
 
         Service service = serviceMap.get(rpcRequestMeta.getServiceName());
         if(service == null) {

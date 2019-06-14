@@ -2,6 +2,8 @@ package protobuf;
 
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.Message;
+import log.Log;
+import log.LogCategory;
 import org.apache.mina.core.service.IoHandlerAdapter;
 import org.apache.mina.core.session.IoSession;
 import protobuf.proto.Rpc;
@@ -10,12 +12,12 @@ public class ClientIoHandler extends IoHandlerAdapter {
 
     @Override
     public void sessionOpened(IoSession session) {
-        System.out.println("Session Open");
+        Log.trace(LogCategory.Client, "Session Open");
     }
 
     @Override
     public void sessionClosed(IoSession session) {
-        System.out.println("Session Close");
+        Log.trace(LogCategory.Server, "Session Close");
     }
 
     @Override
