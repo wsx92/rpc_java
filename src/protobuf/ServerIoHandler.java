@@ -36,12 +36,12 @@ public class ServerIoHandler extends IoHandlerAdapter {
         Log.trace(LogCategory.Server, "service:{},method:{}", rpcRequestMeta.getServiceName(), rpcRequestMeta.getMethodName());
 
         Service service = serviceMap.get(rpcRequestMeta.getServiceName());
-        if(service == null) {
+        if (service == null) {
             throw new RpcException("service not exist");
         }
 
         Descriptors.MethodDescriptor method = service.getDescriptorForType().findMethodByName(rpcRequestMeta.getMethodName());
-        if(method == null) {
+        if (method == null) {
             throw new RpcException("method not exist");
         }
 
@@ -53,7 +53,7 @@ public class ServerIoHandler extends IoHandlerAdapter {
             Rpc.RpcMeta.Builder metaBuilder = Rpc.RpcMeta.newBuilder();
 
             Rpc.RpcResponseMeta.Builder responseMetaBuilder = Rpc.RpcResponseMeta.newBuilder();
-            if(controller.failed()) {
+            if (controller.failed()) {
                 responseMetaBuilder.setErrorText(controller.errorText());
             }
             metaBuilder.setResponse(responseMetaBuilder.build());
