@@ -1,17 +1,23 @@
 package protobuf;
 
+import com.google.protobuf.Descriptors;
 import com.google.protobuf.Message;
 import com.google.protobuf.RpcCallback;
 import com.google.protobuf.RpcController;
+import org.apache.mina.core.buffer.IoBuffer;
+import org.apache.mina.core.future.ConnectFuture;
+import org.apache.mina.core.service.IoConnector;
 import org.apache.mina.core.session.IoSession;
+import protobuf.proto.Rpc;
 
+import java.net.InetSocketAddress;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class Controller implements RpcController {
 
-    private AtomicLong callId = new AtomicLong(0);
+    private static AtomicLong callId = new AtomicLong(0);
 
     private String errorText;
     private boolean failed;
@@ -20,9 +26,17 @@ public class Controller implements RpcController {
 
     private RpcCallback<Message> done;
 
+    private byte[] requestBuf;
+    private Descriptors.MethodDescriptor method;
+
+    private InetSocketAddress singleServerAddress;
+
+    private long currentId;
+
     private static ConcurrentMap<Long, Controller> rpcMap = new ConcurrentHashMap<>();
 
-    public IoSession session;
+    private IoConnector connector;
+    private IoSession session;
 
     @Override
     public void reset() {
@@ -73,20 +87,113 @@ public class Controller implements RpcController {
         this.response = response;
     }
 
-    public RpcCallback getDone() {
+    public RpcCallback<Message> getDone() {
         return done;
     }
 
-    public void setDone(RpcCallback done) {
+    public void setDone(RpcCallback<Message> done) {
         this.done = done;
+    }
+
+    public byte[] getRequestBuf() {
+        return requestBuf;
+    }
+
+    public void setRequestBuf(byte[] requestBuf) {
+        this.requestBuf = requestBuf;
+    }
+
+    public Descriptors.MethodDescriptor getMethod() {
+        return method;
+    }
+
+    public void setMethod(Descriptors.MethodDescriptor method) {
+        this.method = method;
+    }
+
+    public InetSocketAddress getSingleServerAddress() {
+        return singleServerAddress;
+    }
+
+    public void setSingleServerAddress(InetSocketAddress singleServerAddress) {
+        this.singleServerAddress = singleServerAddress;
+    }
+
+    public long getCurrentId() {
+        return currentId;
+    }
+
+    public void setCurrentId(long currentId) {
+        this.currentId = currentId;
+    }
+
+    public IoConnector getConnector() {
+        return connector;
+    }
+
+    public void setConnector(IoConnector connector) {
+        this.connector = connector;
     }
 
     public static Controller getController(long callId) {
         return rpcMap.get(callId);
     }
 
-    public void issueRpc(long callId) {
-        rpcMap.put(callId, this);
+    private boolean singleServer() {
+        return true;
+    }
+
+    private IoBuffer packRequest() {
+        setCurrentId(callId());
+        Rpc.RpcMeta.Builder metaBuilder = Rpc.RpcMeta.newBuilder();
+        metaBuilder.setCorrelationId(getCurrentId());
+        Rpc.RpcRequestMeta.Builder requestMetaBuilder = Rpc.RpcRequestMeta.newBuilder();
+        requestMetaBuilder.setServiceName(method.getService().getFullName());
+        requestMetaBuilder.setMethodName(method.getName());
+        metaBuilder.setRequest(requestMetaBuilder.build());
+        Rpc.RpcMeta requestMeta = metaBuilder.build();
+
+        int requestLength = requestBuf.length;
+        int metaLength = requestMeta.getSerializedSize();
+
+        IoBuffer request = IoBuffer.allocate(12 + metaLength + requestLength);
+
+        request.put(Integer.valueOf('P').byteValue()).put(Integer.valueOf('R').byteValue()).put(Integer.valueOf('P').byteValue()).put(Integer.valueOf('C').byteValue());
+        request.putInt(metaLength + requestLength);
+        request.putInt(metaLength);
+        request.put(requestMeta.toByteArray());
+        request.put(requestBuf);
+        request.flip();
+
+        return request;
+    }
+
+    public void issueRpc() {
+        //make request
+        IoBuffer request = packRequest();
+
+        //pick a target server for sending rpc
+        if (singleServer()) {
+            //connect if not
+            if (session == null || !session.isConnected()) {
+                ConnectFuture future = getConnector().connect(singleServerAddress);
+                future.awaitUninterruptibly();
+                if (future.isConnected()) {
+                    session = future.getSession();
+                    session.write(request);
+                } else {
+                    setFailed("connect server " + singleServerAddress + " failed");
+                    if (done != null) {
+                        done.run(response);
+                    }
+                    return;
+                }
+            } else {
+                session.write(request);
+            }
+        }
+
+        rpcMap.put(getCurrentId(), this);
     }
 
     public void onRpcReturned() {
@@ -94,7 +201,7 @@ public class Controller implements RpcController {
     }
 
     public void endRpc() {
-        if(done != null) {
+        if (done != null) {
             done.run(response);
         }
     }

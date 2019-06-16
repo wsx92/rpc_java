@@ -1,7 +1,5 @@
 import log.Log;
 import log.LogCategory;
-import org.apache.mina.core.future.ConnectFuture;
-import org.apache.mina.core.session.IoSession;
 import org.apache.mina.filter.codec.ProtocolCodecFilter;
 import org.apache.mina.transport.socket.nio.NioSocketConnector;
 import protobuf.*;
@@ -15,19 +13,27 @@ public class Client {
         connector.getFilterChain().addLast("protoBuf", new ProtocolCodecFilter(new ProtoBufEncoder(), new ProtoBufDecoder()));
         connector.setHandler(new ClientIoHandler());
 
-        ConnectFuture future = connector.connect(new InetSocketAddress("localhost", 8000));
-
-        future.awaitUninterruptibly();
-
-        IoSession session = future.getSession();
-
         Channel channel = new Channel();
-        Controller controller = new Controller();
-        controller.session = session;
+        channel.init(connector, new InetSocketAddress("localhost", 8000));
 
-        Echo.EchoRequest request = Echo.EchoRequest.newBuilder().setMessage("hello world").build();
-        Echo.EchoService.Stub stub = Echo.EchoService.newStub(channel);
-        stub.echo(controller, request, response -> Log.info(LogCategory.Client, response.getMessage()));
+        while (true) {
+            Controller controller = new Controller();
+
+            Echo.EchoRequest request = Echo.EchoRequest.newBuilder().setMessage("hello world").build();
+            Echo.EchoService.Stub stub = Echo.EchoService.newStub(channel);
+            stub.echo(controller, request, response -> {
+                if (!controller.failed()) {
+                    Log.info(LogCategory.Client, response.getMessage());
+                } else {
+                    Log.error(LogCategory.Client, controller.errorText());
+                }
+            });
+            try {
+                Thread.sleep(1000);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
 
     }
 }
