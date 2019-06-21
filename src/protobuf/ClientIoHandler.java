@@ -1,6 +1,5 @@
 package protobuf;
 
-import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.Message;
 import log.Log;
 import log.LogCategory;
@@ -42,10 +41,10 @@ public class ClientIoHandler extends IoHandlerAdapter {
 
         if (controller.getResponse() != null) {
             try {
-                Message response = controller.getResponse().newBuilderForType().mergeFrom(msg.getPayload().array()).build();
+                Message response = Compress.parseFromCompressedData(meta.getCompressType(), controller.getResponse().newBuilderForType(), msg.getPayload().array());
                 controller.setResponse(response);
-            } catch (InvalidProtocolBufferException e) {
-                controller.setFailed("fail to parse response message");
+            } catch (Exception e) {
+                controller.setFailed("fail to parse response message " + e.getMessage());
             }
         }
 

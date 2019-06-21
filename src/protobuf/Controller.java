@@ -26,6 +26,9 @@ public class Controller implements RpcController {
 
     private RpcCallback<Message> done;
 
+    private int requestCompressType;
+    private int responseCompressType;
+
     private byte[] requestBuf;
     private Descriptors.MethodDescriptor method;
 
@@ -95,6 +98,22 @@ public class Controller implements RpcController {
         this.done = done;
     }
 
+    public int getRequestCompressType() {
+        return requestCompressType;
+    }
+
+    public void setRequestCompressType(int requestCompressType) {
+        this.requestCompressType = requestCompressType;
+    }
+
+    public int getResponseCompressType() {
+        return responseCompressType;
+    }
+
+    public void setResponseCompressType(int responseCompressType) {
+        this.responseCompressType = responseCompressType;
+    }
+
     public byte[] getRequestBuf() {
         return requestBuf;
     }
@@ -147,6 +166,7 @@ public class Controller implements RpcController {
         setCurrentId(callId());
         Rpc.RpcMeta.Builder metaBuilder = Rpc.RpcMeta.newBuilder();
         metaBuilder.setCorrelationId(getCurrentId());
+        metaBuilder.setCompressType(getRequestCompressType());
         Rpc.RpcRequestMeta.Builder requestMetaBuilder = Rpc.RpcRequestMeta.newBuilder();
         requestMetaBuilder.setServiceName(method.getService().getFullName());
         requestMetaBuilder.setMethodName(method.getName());

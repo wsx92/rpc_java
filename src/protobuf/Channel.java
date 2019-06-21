@@ -39,7 +39,17 @@ public class Channel implements RpcChannel {
             controller.setSingleServerAddress(serverAddress);
         }
 
-        controller.setRequestBuf(message.toByteArray());
+        byte[] requestBuf;
+        try {
+            requestBuf = Compress.serializeAsCompressedData(controller.getRequestCompressType(), message);
+        } catch (Exception e) {
+            controller.setFailed(e.getMessage());
+            if (rpcCallback != null) {
+                rpcCallback.run(message1);
+            }
+            return;
+        }
+        controller.setRequestBuf(requestBuf);
 
         controller.issueRpc();
 

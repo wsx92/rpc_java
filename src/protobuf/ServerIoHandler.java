@@ -45,9 +45,9 @@ public class ServerIoHandler extends IoHandlerAdapter {
             throw new RpcException("method not exist");
         }
 
-        Message request = service.getRequestPrototype(method).newBuilderForType().mergeFrom(msg.getPayload().array()).build();
+        Message request = Compress.parseFromCompressedData(requestMeta.getCompressType(), service.getRequestPrototype(method).newBuilderForType(), msg.getPayload().array());
 
-        RpcController controller = new Controller();
+        Controller controller = new Controller();
 
         service.callMethod(method, controller, request, response -> {
             Rpc.RpcMeta.Builder metaBuilder = Rpc.RpcMeta.newBuilder();
@@ -58,10 +58,21 @@ public class ServerIoHandler extends IoHandlerAdapter {
             }
             metaBuilder.setResponse(responseMetaBuilder.build());
 
+            byte[] responseByte = null;
+            try {
+                responseByte = Compress.serializeAsCompressedData(controller.getResponseCompressType(), response);
+            } catch (Exception e) {
+                controller.setFailed(e.getMessage());
+            }
+
             metaBuilder.setCorrelationId(requestMeta.getCorrelationId());
+            metaBuilder.setCompressType(controller.getResponseCompressType());
             Rpc.RpcMeta responseMeta = metaBuilder.build();
 
-            int responseLength = response.getSerializedSize();
+            int responseLength = 0;
+            if (responseByte != null) {
+                responseLength = responseByte.length;
+            }
             int metaLength = responseMeta.getSerializedSize();
 
             IoBuffer responseBuf = IoBuffer.allocate(12 + metaLength + responseLength);
@@ -70,7 +81,9 @@ public class ServerIoHandler extends IoHandlerAdapter {
             responseBuf.putInt(metaLength + responseLength);
             responseBuf.putInt(metaLength);
             responseBuf.put(responseMeta.toByteArray());
-            responseBuf.put(response.toByteArray());
+            if (responseByte != null) {
+                responseBuf.put(responseByte);
+            }
 
             responseBuf.flip();
             session.write(responseBuf);
