@@ -10,6 +10,8 @@ public class Channel implements RpcChannel {
     private IoConnector connector;
     private InetSocketAddress serverAddress;
 
+    private LoadBalance loadBalance;
+
     @Override
     public void callMethod(Descriptors.MethodDescriptor methodDescriptor, RpcController rpcController, Message message, Message message1, RpcCallback<Message> rpcCallback) {
 
@@ -56,7 +58,7 @@ public class Channel implements RpcChannel {
     }
 
     public boolean singleServer() {
-        return true;
+        return loadBalance == null;
     }
 
     public void init(IoConnector connector, InetSocketAddress serverAddress) {

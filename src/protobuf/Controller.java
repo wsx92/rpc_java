@@ -40,6 +40,7 @@ public class Controller implements RpcController {
 
     private IoConnector connector;
     private IoSession session;
+    private LoadBalance loadBalance;
 
     @Override
     public void reset() {
@@ -158,8 +159,16 @@ public class Controller implements RpcController {
         return rpcMap.get(callId);
     }
 
+    public LoadBalance getLoadBalance() {
+        return loadBalance;
+    }
+
+    public void setLoadBalance(LoadBalance loadBalance) {
+        this.loadBalance = loadBalance;
+    }
+
     private boolean singleServer() {
-        return true;
+        return loadBalance == null;
     }
 
     private IoBuffer packRequest() {
