@@ -5,12 +5,9 @@ import com.google.protobuf.Message;
 import com.google.protobuf.RpcCallback;
 import com.google.protobuf.RpcController;
 import org.apache.mina.core.buffer.IoBuffer;
-import org.apache.mina.core.future.ConnectFuture;
-import org.apache.mina.core.service.IoConnector;
 import org.apache.mina.core.session.IoSession;
 import protobuf.proto.Rpc;
 
-import java.net.InetSocketAddress;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -32,15 +29,11 @@ public class Controller implements RpcController {
     private byte[] requestBuf;
     private Descriptors.MethodDescriptor method;
 
-    private InetSocketAddress singleServerAddress;
-
     private long currentId;
 
     private static ConcurrentMap<Long, Controller> rpcMap = new ConcurrentHashMap<>();
 
-    private IoConnector connector;
-    private IoSession session;
-    private LoadBalance loadBalance;
+    private Channel channel;
 
     @Override
     public void reset() {
@@ -131,14 +124,6 @@ public class Controller implements RpcController {
         this.method = method;
     }
 
-    public InetSocketAddress getSingleServerAddress() {
-        return singleServerAddress;
-    }
-
-    public void setSingleServerAddress(InetSocketAddress singleServerAddress) {
-        this.singleServerAddress = singleServerAddress;
-    }
-
     public long getCurrentId() {
         return currentId;
     }
@@ -147,28 +132,16 @@ public class Controller implements RpcController {
         this.currentId = currentId;
     }
 
-    public IoConnector getConnector() {
-        return connector;
+    public Channel getChannel() {
+        return channel;
     }
 
-    public void setConnector(IoConnector connector) {
-        this.connector = connector;
+    public void setChannel(Channel channel) {
+        this.channel = channel;
     }
 
     public static Controller getController(long callId) {
         return rpcMap.get(callId);
-    }
-
-    public LoadBalance getLoadBalance() {
-        return loadBalance;
-    }
-
-    public void setLoadBalance(LoadBalance loadBalance) {
-        this.loadBalance = loadBalance;
-    }
-
-    private boolean singleServer() {
-        return loadBalance == null;
     }
 
     private IoBuffer packRequest() {
@@ -201,24 +174,13 @@ public class Controller implements RpcController {
         //make request
         IoBuffer request = packRequest();
 
-        //pick a target server for sending rpc
-        if (singleServer()) {
-            //connect if not
-            if (session == null || !session.isConnected()) {
-                ConnectFuture future = getConnector().connect(singleServerAddress);
-                future.awaitUninterruptibly();
-                if (future.isConnected()) {
-                    session = future.getSession();
-                    session.write(request);
-                } else {
-                    setFailed("connect server " + singleServerAddress + " failed");
-                    if (done != null) {
-                        done.run(response);
-                    }
-                    return;
-                }
-            } else {
-                session.write(request);
+        try {
+            IoSession session = channel.getSession();
+            session.write(request);
+        } catch (RpcException e) {
+            setFailed(e.getMessage());
+            if (done != null) {
+                done.run(response);
             }
         }
 

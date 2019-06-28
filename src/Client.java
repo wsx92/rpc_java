@@ -1,7 +1,5 @@
 import log.Log;
 import log.LogCategory;
-import org.apache.mina.filter.codec.ProtocolCodecFilter;
-import org.apache.mina.transport.socket.nio.NioSocketConnector;
 import protobuf.*;
 import example.proto.Echo;
 
@@ -9,12 +7,9 @@ import java.net.InetSocketAddress;
 
 public class Client {
     public static void main(String[] args) {
-        NioSocketConnector connector = new NioSocketConnector();
-        connector.getFilterChain().addLast("protoBuf", new ProtocolCodecFilter(new ProtoBufEncoder(), new ProtoBufDecoder()));
-        connector.setHandler(new ClientIoHandler());
 
         Channel channel = new Channel();
-        channel.init(connector, new InetSocketAddress("localhost", 8000));
+        channel.init(new InetSocketAddress("localhost", 8000));
 
         while (true) {
             Controller controller = new Controller();
